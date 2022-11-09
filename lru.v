@@ -1,6 +1,8 @@
-module LRU(hit, lru_prev_state, final_state, replace);
-    input hit;
-    input [3:0] lru_prev_state;
+module LRU(reset, hit, lru_prev_state, index, final_state, replace);
+input wire reset;
+    input wire hit;
+    input wire [3:0] lru_prev_state;
+    input index;
 
     output reg [3:0] final_state;
     output reg[31:0] replace;
@@ -9,7 +11,11 @@ module LRU(hit, lru_prev_state, final_state, replace);
     reg[31:0] set0[3:0];
     reg[31:0] i = 32'd0;
     reg[31:0] random_ind = 32'd0;
-
+    always @ (posedge reset)
+    begin
+        // hit <= 0;
+        final_state <= 4'b0000;
+    end
     always @(hit, lru_prev_state) begin
         
     if(hit==0)
