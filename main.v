@@ -19,24 +19,19 @@ module memory();
     // reg [3:0] valid_bit;
 
     reg[31:0] replace;
-
+    integer hit_counter = 32'd0;
     reg[31:0] counter = 32'd0;
     reg[31:0] set0[3:0];
     // reg[31:0] i = 32'd0;
     reg[31:0] random_ind = 32'd0;
+    reg[31:0] cache_data_offset_start = 32'd0;
+    reg[31:0] cache_data_offset_end = 32'd0;
 
     initial
     begin
 
-      for(i=0; i<32; i=i+1)
-				memory[i] <= 32'd0;
-      memory[1] = 1;
-      memory[2] = 9;
-      memory[3] = 6;
-      memory[4] = 8;
-      memory[5] = 1;
-      memory[6] = 6;
-      memory[7] = 7;
+      for(i=0; i<4096; i=i+1)
+				memory[i] = i;
 
 
       for (a = 0; a<4; a = a + 1)
@@ -54,51 +49,68 @@ module memory();
         begin
           instn = instruction_set[i];
           rwop = instn[20]; //read=0, write=1
-          address = instn[19:8]; 
+          address = instn[19:8];
+          $display("Address: %b", address);
           data = instn[7:0];
           tag = address[11:7];
           index = address[6:2];
           offset = address[1:0];
           read_hit = 0;
-          valid_bit = 4'b0000;          
+          valid_bit = 4'b0000;
           if (rwop==0)
             begin
               for ( j=0; j<=3; j=j+1)
                 begin
                   valid_bit[j] = cache[index][j][37];
-
-                  // LRU starts
-                  if(read_hit==0)
-                    begin
-                      for (k=0; k<=3; k = k+1) //initialise to 0
-                        begin
-                          if(valid_bit[k]==0)
-                          begin
-                              set0[counter] = k;
-                              counter = counter+1;
-                          end
-                        end
-                      if(counter==1)
-                      begin
-                          valid_bit_out = ~valid_bit;
-                          replace = set0[0];
-                      end
-                      else
-                      begin
-                          random_ind = $urandom%counter;
-                          valid_bit_out = valid_bit;
-                          valid_bit_out[set0[random_ind]] = 1;
-                          replace = set0[random_ind];
-                      end
-                    end
-                  $display(cache[index][j]+ "\n\n");
-                  if (cache[index][j][36:32]==tag)
+                  if (valid_bit[j]==1 && cache[index][j][36:32]==tag)
                     begin
                       read_hit=1;
                       // $display("\n" + memory[tag]);
                     end
-                  
                 end
+
+              if(read_hit==0)
+                begin
+                  for (k=0; k<=3; k = k+1) //initialise to 0
+                    begin
+                      if(valid_bit[k]==0)
+                      begin
+                          set0[counter] = k;
+                          counter = counter+1;
+                      end
+                    end
+                  if(counter==1)
+                  begin
+                      valid_bit_out = ~valid_bit;
+                      replace = set0[0];
+                  end
+                  else
+                  begin
+                      random_ind = $urandom%counter;
+                      valid_bit_out = valid_bit;
+                      valid_bit_out[set0[random_ind]] = 1;
+                      replace = set0[random_ind];
+                  end
+                  $display("memory data: %d", memory[address]);
+                  cache_data_offset_start = 31 - 8*offset;
+                  cache_data_offset_end = cache_data_offset_start-32'd7;
+                  cache[index][replace][cache_data_offset_start -:8] = memory[address];
+                  cache[index][replace][37] = 1;
+                  cache[index][replace][36 -:5] = tag;
+                  $display("cache: %b", cache[index][replace]);
+                end
+                else
+                begin
+                  $display("It was a hit\n");
+                  hit_counter = hit_counter + 1;
+                end
+              // $display(cache[index][j]+ "\n\n");
+              // if (cache[index][j][36:32]==tag)
+              //   begin
+              //     read_hit=1;
+              //     // $display("\n" + memory[tag]);
+              //   end
+
             end
           end
     end
