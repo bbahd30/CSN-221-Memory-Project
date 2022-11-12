@@ -1,0 +1,5 @@
+# Ignore editor configurations
+.vscode
+
+# Ignore macos specific files
+.DS_STORE

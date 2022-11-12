@@ -7,6 +7,67 @@
 #include <cctype>
 #include <locale>
 
+std::string hexToBin(std::string s){
+    std::string inst = "";
+    char c;
+    for(int i=0 ; i<7 ; i++){
+        c = s[i];
+        switch (c) {
+            case '0':
+                inst.append("0000");
+                break;
+            case '1':
+                inst.append("0001");
+                break;
+            case '2':
+                inst.append("0010");
+                break;
+            case '3':
+                inst.append("0011");
+                break;
+            case '4':
+                inst.append("0100");
+                break;
+            case '5':
+                inst.append("0101");
+                break;
+            case '6':
+                inst.append("0110");
+                break;
+            case '7':
+                inst.append("0111");
+                break;
+            case '8':
+                inst.append("1000");
+                break;
+            case '9':
+                inst.append("1001");
+                break;
+            case 'a':
+                inst.append("1010");
+                break;
+            case 'b':
+                inst.append("1011");
+                break;
+            case 'c':
+                inst.append("1100");
+                break;
+            case 'd':
+                inst.append("1101");
+                break;
+            case 'e':
+                inst.append("1110");
+                break;
+            case 'f':
+                inst.append("1111");
+                break;
+            default:
+                break;
+        }
+    }
+    return inst;
+} 
+
 void trim(std::string &str){
     
     
@@ -21,31 +82,3 @@ void trim(std::string &str){
     
 
 }
-
-// std::vector<std::string> split(std::string str, char ch){
-//     trim(str);
-//     std::vector<std::string> splitted_str;
-//     std::string s="";
-//     int i=0;
-//     while(i < str.length()){
-//         if (str[i] == ch)
-//         {
-//             trim(s); 
-//             splitted_str.push_back(s);
-//             s = "";
-//         }
-//         else if (str[i]!=ch)
-//         {
-//             s += str[i];
-//         }
-//         i++;
-//     }
-//     trim(s);
-//     splitted_str.push_back(s);
-//     return splitted_str;
-// }
-
-// unsigned short parse_register_string (std::string register_string) {
-//      return (unsigned short)std::stoul(register_string.substr(1,register_string.length()-1));
-// }
-
