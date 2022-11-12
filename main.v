@@ -1,19 +1,31 @@
 module memory();
-    reg [7:0] memory[4095:0];
-    reg [38:0] cache [31:0][3:0];
-    reg [20:0] instruction_set[0:3];
-    reg [20:0] instn;
-    reg rwop;
-    reg [11:0] address;
-    reg [31:0] data;
-    reg [2:0] tag;
-    reg [2:0] index;
+    parameter MAIN_MEMORY_SIZE_EXP = 32'd12;
+    parameter CACHE_SIZE_EXP = 32'd10;
+    parameter ADDRESS_SIZE = 32'd24;
+    parameter BLOCK_SIZE = 32'd32;
+    parameter BLOCK_SIZE_EXP = 32'd5;
+    parameter DATA_SIZE = 32'd8;
+    parameter OFFSET_EXP = 32'd2;
+    parameter INDEX_SIZE_EXP = CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP);
+
+    integer tag_size = ADDRESS_SIZE - INDEX_SIZE_EXP - OFFSET_EXP;
+    integer CACHE_DATA_SIZE = 32'd2 + ADDRESS_SIZE - INDEX_SIZE_EXP + BLOCK_SIZE;
+    integer INDEX_SIZE = 32'd1<<INDEX_SIZE_EXP;
+
+    reg [DATA_SIZE-1:0] memory[32'd1<<(MAIN_MEMORY_SIZE_EXP-2):0][3:0];
+    reg [32'd2 + ADDRESS_SIZE + CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP) + BLOCK_SIZE -1:0] cache [32'd1<<(CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP))-1:0][3:0];
+    reg [ADDRESS_SIZE+3:0] instruction_set[0:3];
+    reg [ADDRESS_SIZE+3:0] instn;
+    reg [3:0] rwop;
+    reg [ADDRESS_SIZE-1:0] address;
+    reg [BLOCK_SIZE-1:0] data;
+    reg [ADDRESS_SIZE - (CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP)) - OFFSET_EXP:0] tag;
+    reg [CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP)-1:0] index;
     //integer index;
-    reg [1:0] offset;
+    reg [OFFSET_EXP-1:0] offset;
     reg read_hit; //miss= 0
     reg [3:0] valid_bit; //
     reg [3:0] valid_bit_out;
-    reg [31:0] way; //corresponds to replace in lru
     integer j, i, k, a, b;
     input hit;
     // reg [3:0] valid_bit;
@@ -30,13 +42,14 @@ module memory();
     initial
     begin
 
-      for(i=0; i<4096; i=i+1)
-				memory[i] = i;
+      for(i=0; i<32'd1<<(MAIN_MEMORY_SIZE_EXP-2); i=i+1)
+        for(j=0; j<32'd4; ++j)
+				  memory[i][j] = i+j;
 
 
       for (a = 0; a<4; a = a + 1)
       begin
-          for (b = 0; b<32; b = b+1)
+          for (b = 0; b<INDEX_SIZE; b = b+1)
           begin
               cache[b][a] = 0;
           end
@@ -44,59 +57,55 @@ module memory();
 
       $readmemb("instruction.txt", instruction_set);
       // $display(instruction_set[0]);
-      $display("hel");
-      for (i=0; i<2; i=i+1)
+      for (i=0; i<4; i=i+1)
         begin
           instn = instruction_set[i];
-          rwop = instn[20]; //read=0, write=1
-          address = instn[19:8];
-          $display("Address: %b", address);
-          data = instn[7:0];
-          tag = address[11:7];
-          index = address[6:2];
-          offset = address[1:0];
+          rwop = instn[(ADDRESS_SIZE+3) -: 4]; //read=0, write=1
+          address = instn[ADDRESS_SIZE-1:0];
+          // data = instn[7:0];
+          tag = address[ADDRESS_SIZE-1 -: ADDRESS_SIZE - (CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP)) - OFFSET_EXP];
+          index = address[CACHE_SIZE_EXP - BLOCK_SIZE_EXP :OFFSET_EXP];
+          offset = address[OFFSET_EXP-1:0];
           read_hit = 0;
           valid_bit = 4'b0000;
-          if (rwop==0)
-            begin
-              for ( j=0; j<=3; j=j+1)
-                begin
-                  valid_bit[j] = cache[index][j][37];
-                  if (valid_bit[j]==1 && cache[index][j][36:32]==tag)
-                    begin
-                      read_hit=1;
-                      // $display("\n" + memory[tag]);
-                    end
-                end
 
+          for ( j=0; j<=3; j=j+1)
+          begin
+            valid_bit[j] = cache[index][j][CACHE_DATA_SIZE-2];
+            if (valid_bit[j]==1 && cache[index][j][CACHE_DATA_SIZE-3 -: ADDRESS_SIZE - (CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP)) - OFFSET_EXP]==tag)
+              begin
+                read_hit=1;
+                // $display("\n" + memory[tag]);
+              end
+          end
+          for (k=0; k<=3; k = k+1) //initialise to 0
+            begin
+              if(valid_bit[k]==0)
+              begin
+                set0[counter] = k;
+                counter = counter+1;
+              end
+            end
+          if(counter==1)
+            begin
+              valid_bit_out = ~valid_bit;
+              replace = set0[0];
+            end
+            else
+            begin
+              random_ind = $urandom%counter;
+              valid_bit_out = valid_bit;
+              valid_bit_out[set0[random_ind]] = 1;
+              replace = set0[random_ind];
+            end
+
+          if (rwop==4'b0001)
+            begin
               if(read_hit==0)
                 begin
-                  for (k=0; k<=3; k = k+1) //initialise to 0
-                    begin
-                      if(valid_bit[k]==0)
-                      begin
-                          set0[counter] = k;
-                          counter = counter+1;
-                      end
-                    end
-                  if(counter==1)
-                  begin
-                      valid_bit_out = ~valid_bit;
-                      replace = set0[0];
-                  end
-                  else
-                  begin
-                      random_ind = $urandom%counter;
-                      valid_bit_out = valid_bit;
-                      valid_bit_out[set0[random_ind]] = 1;
-                      replace = set0[random_ind];
-                  end
-                  $display("memory data: %d", memory[address]);
-                  cache_data_offset_start = 31 - 8*offset;
-                  cache_data_offset_end = cache_data_offset_start-32'd7;
-                  cache[index][replace][cache_data_offset_start -:8] = memory[address];
-                  cache[index][replace][37] = 1;
-                  cache[index][replace][36 -:5] = tag;
+                  cache[index][replace]= {memory[address[ADDRESS_SIZE-1 : OFFSET_EXP]][0], memory[address[ADDRESS_SIZE-1 : OFFSET_EXP]][1], memory[address[ADDRESS_SIZE-1 : OFFSET_EXP]][2], memory[address[ADDRESS_SIZE-1 : OFFSET_EXP]][3]};
+                  cache[index][replace][CACHE_DATA_SIZE-2] = 1;
+                  cache[index][replace][CACHE_DATA_SIZE-3 -: ADDRESS_SIZE - (CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP)) - OFFSET_EXP] = tag;
                   $display("cache: %b", cache[index][replace]);
                 end
                 else
@@ -110,6 +119,26 @@ module memory();
               //     read_hit=1;
               //     // $display("\n" + memory[tag]);
               //   end
+
+            end
+          else
+            begin
+              if(read_hit==0 && cache[index][replace][CACHE_DATA_SIZE-1]==1)
+              begin
+                memory[address[ADDRESS_SIZE-1 : OFFSET_EXP]][0] = cache[index][replace][BLOCK_SIZE-1 -: DATA_SIZE];
+                memory[address[ADDRESS_SIZE-1 : OFFSET_EXP]][1] = cache[index][replace][BLOCK_SIZE-DATA_SIZE-1 -: DATA_SIZE];
+                memory[address[ADDRESS_SIZE-1 : OFFSET_EXP]][2] = cache[index][replace][BLOCK_SIZE-(2*DATA_SIZE)-1 -: DATA_SIZE];
+                memory[address[ADDRESS_SIZE-1 : OFFSET_EXP]][3] = cache[index][replace][BLOCK_SIZE-1 -(3*DATA_SIZE) -: DATA_SIZE];
+              end
+
+              if(read_hit==1)
+              begin
+                cache[index][replace][CACHE_DATA_SIZE-1] = 1;
+              end
+              else
+              begin
+                cache[index][replace][CACHE_DATA_SIZE-1] = 1;
+              end
 
             end
           end
