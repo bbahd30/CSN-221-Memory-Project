@@ -1,7 +1,7 @@
 module memory();
     parameter MAIN_MEMORY_SIZE_EXP = 32'd24;
-    parameter CACHE_SIZE_EXP = 32'd20;
-    parameter WAYS_EXP = 32'd3; //New addition
+    parameter CACHE_SIZE_EXP = 32'd14;
+    parameter WAYS_EXP = 32'd4; //New addition
     // parameter WAYS = 32'd1<<WAYS_EXP; //New addition
     parameter ADDRESS_SIZE = 32'd24;
     // parameter BLOCK_SIZE = 32'd32;
@@ -9,7 +9,8 @@ module memory();
     parameter BLOCK_SIZE = 32'd64;
     parameter BLOCK_SIZE_EXP = 32'd6;
     parameter DATA_SIZE = 32'd8;
-    parameter OFFSET_EXP = 32'd2;
+    parameter OFFSET_EXP = 32'd3;
+    parameter NO_OF_INST = 32'd41832;
     // parameter INDEX_SIZE_EXP = CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP);
     parameter INDEX_SIZE_EXP = CACHE_SIZE_EXP - (WAYS_EXP + BLOCK_SIZE_EXP);
 
@@ -22,8 +23,8 @@ module memory();
     reg [DATA_SIZE-1:0] memory[32'd1<<(MAIN_MEMORY_SIZE_EXP-(BLOCK_SIZE_EXP-3)):0][32'd1<<(BLOCK_SIZE_EXP-3)-1:0];
     // reg [32'd2 + ADDRESS_SIZE + CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP) + BLOCK_SIZE -1:0] cache [32'd1<<(CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP))-1:0][3:0];
     // reg [WAYS_EXP + ADDRESS_SIZE + CACHE_SIZE_EXP - (WAYS_EXP + BLOCK_SIZE_EXP) + BLOCK_SIZE -1:0] cache [32'd1<<(CACHE_SIZE_EXP - (OFFSET_EXP + BLOCK_SIZE_EXP))-1:0][3:0];
-    reg [32'd2 + ADDRESS_SIZE - CACHE_SIZE_EXP + (WAYS_EXP + BLOCK_SIZE_EXP) + BLOCK_SIZE -1:0] cache [32'd1<<(CACHE_SIZE_EXP - (WAYS_EXP + BLOCK_SIZE_EXP))-1:0][(32'd1<<WAYS_EXP) - 1:0];
-    reg [ADDRESS_SIZE+3:0] instruction_set[0:67234];
+    reg [32'd2 + ADDRESS_SIZE - CACHE_SIZE_EXP + (WAYS_EXP + BLOCK_SIZE_EXP) + BLOCK_SIZE -1:0] cache [(32'd1<<(CACHE_SIZE_EXP - (WAYS_EXP + BLOCK_SIZE_EXP)))-1:0][(32'd1<<WAYS_EXP) - 1:0];
+    reg [ADDRESS_SIZE+3:0] instruction_set[0:NO_OF_INST-1];
     reg [ADDRESS_SIZE+3:0] instn;
     reg [3:0] rwop;
     reg [ADDRESS_SIZE-1:0] address;
@@ -35,7 +36,7 @@ module memory();
     reg read_hit; //miss= 0
     reg [(32'd1<<WAYS_EXP)-1:0] valid_bit; //Modified
     reg [(32'd1<<WAYS_EXP)-1:0] valid_bit_out; //Modified
-    integer j, i, k, a, b;
+    integer j, i, k, a, b, c;
     // input hit; //Modified
     // reg [3:0] valid_bit;
 
@@ -60,13 +61,15 @@ module memory();
       begin
           for (b = 0; b<INDEX_SIZE; b = b+1)
           begin
-              cache[b][a] = 0;
+              // $display("b = %b", b);'
+              cache[b][a][CACHE_DATA_SIZE-2] = 0;
+              // $display("cache[b][a][CACHE_DATA_SIZE-2] = %b", cache[b][a][CACHE_DATA_SIZE-2]);
           end
       end
 
       $readmemh("instruction.txt", instruction_set);
       // $display(instruction_set[0]);
-      for (i=0; i<67235; i=i+1)
+      for (i=0; i<NO_OF_INST; i=i+1)
         begin
           instn = instruction_set[i];
           rwop = instn[(ADDRESS_SIZE+3) -: 4]; //read=1, write=2
@@ -78,6 +81,9 @@ module memory();
           read_hit = 0;
           // valid_bit = 4'b0000;
           // valid_bit = WAYS'd0;
+          // $display("address: %b", address);
+          // $display("tag: %b", tag);
+
           for(j=0 ; j<32'd1<<WAYS_EXP ; j=j+1)
           begin
             valid_bit[j] = 0;
@@ -89,6 +95,8 @@ module memory();
           for ( j=0; j<(32'd1<<WAYS_EXP); j=j+1) //Modified
           begin
             valid_bit[j] = cache[index][j][CACHE_DATA_SIZE-2];
+            // $display("CACHE_VALID_BIT : %b", cache[index][j][CACHE_DATA_SIZE-2]);
+            // $display("VALID_BIT : %b", valid_bit[j]);
             if (valid_bit[j]==1 && cache[index][j][CACHE_DATA_SIZE-3 -: ADDRESS_SIZE - (CACHE_SIZE_EXP - (WAYS_EXP + BLOCK_SIZE_EXP)) - OFFSET_EXP]==tag) //Modified
               begin
                 read_hit=1;
@@ -170,12 +178,13 @@ module memory();
               else
               begin
                 cache[index][replace][CACHE_DATA_SIZE-1] = 1;
+                cache[index][replace][CACHE_DATA_SIZE-3 -: ADDRESS_SIZE - (CACHE_SIZE_EXP - (WAYS_EXP + BLOCK_SIZE_EXP)) - OFFSET_EXP] = tag; //Modified
               end
 
             end
           end
           $display("hit counter: %d", hit_counter);
-         $display("hit rate: %d", hit_counter/672.35);
+         $display("hit rate: %d", hit_counter/418.32);
     end
    
 endmodule
